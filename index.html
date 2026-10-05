@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Аналітика швидкості доставки (DWH)</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- ==================== ЧАСТЬ 1: ДИЗАЙН (CSS) ==================== -->
+  <style>
+    :root {
+      --bg-body: #0f172a;       
+      --bg-sidebar: #1e293b;    
+      --text-main: #f1f5f9;     
+      --text-muted: #94a3b8;    
+      --border: #334155;        
+      --accent: #38bdf8;        
+      --accent-green: #4ade80;  
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    body {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      background-color: var(--bg-body);
+      color: var(--text-main);
+      padding: 12px;
+      gap: 12px;
+    }
+
+    /* Левая панель управления и сводной таблицы */
+    #sidebar {
+      width: 600px;
+      flex-shrink: 0;
+      height: 100%;
+      padding: 18px;
+      overflow-y: auto;
+      background-color: var(--bg-sidebar);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Правая часть - Карта */
+    #map {
+      flex-grow: 1;
+      height: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    }
+
+    h2 {
+      font-size: 1.05rem;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--accent);
+    }
+
+    .card-panel {
+      background: var(--bg-body);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .panel-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .form-group {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .form-group label {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    input[type="date"], input[type="text"], select {
+      width: 100%;
+      padding: 7px 10px;
+      background-color: var(--bg-sidebar);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.8rem;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--accent);
+    }
+
+    .btn-fetch {
+      width: 100%;
+      padding: 9px;
+      background-color: var(--accent);
+      color: #0f172a;
+      font-weight: 700;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-fetch:hover {
+      background-color: #7dd3fc;
+    }
+
+    .btn-back {
+      display: none;
+      padding: 7px 12px;
+      background-color: var(--accent);
+      color: #0f172a;
+      font-weight: 700;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.78rem;
+      align-self: flex-start;
+    }
+
+    .btn-back:hover {
+      background-color: #7dd3fc;
+    }
+
+    .breadcrumb {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      background: var(--bg-body);
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    /* Контейнер таблицы с ползунком */
+    .table-container {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      max-height: 380px;
+      overflow-y: auto;
+      flex-grow: 1;
+      background: var(--bg-body);
+    }
+
+    /* Кастомный ползунок */
+    .table-container::-webkit-scrollbar {
+      width: 6px;
+    }
+    .table-container::-webkit-scrollbar-track {
+      background: var(--bg-body);
+    }
+    .table-container::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+    .table-container::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    th, td {
+      padding: 9px 11px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background-color: var(--bg-sidebar);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.68rem;
+      z-index: 10;
+    }
+
+    tr.clickable {
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    tr.clickable:hover {
+      background-color: #334155;
+    }
+
+    .badge-days {
+      background-color: rgba(74, 222, 128, 0.12);
+      color: var(--accent-green);
+      border: 1px solid rgba(74, 222, 128, 0.3);
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .status-msg {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+      background: var(--bg-sidebar) !important;
+      color: var(--text-main) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 8px !important;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6) !important;
+    }
+
+    .leaflet-popup-content {
+      margin: 12px 14px !important;
+      line-height: 1.5 !important;
+    }
+
+    .route-popup b {
+      color: var(--accent);
+    }
+
+    @keyframes flowDirection {
+      from { stroke-dashoffset: 20px; }
+      to { stroke-dashoffset: 0; }
+    }
+
+    .animated-line {
+      stroke-dasharray: 8, 12;
+      animation: flowDirection 0.8s linear infinite;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== ЧАСТЬ 2: ВЕРСТКА (HTML) ==================== -->
+  <div id="sidebar">
+    <h2>Сводна аналітика DWH</h2>
+
+    <!-- 1. Параметры SQL-запроса -->
+    <div class="card-panel">
+      <div class="panel-title">1. Запит до бази DWH</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Дата з:</label>
+          <input type="date" id="dateFrom" value="2026-10-05">
+        </div>
+        <div class="form-group">
+          <label>Дата по:</label>
+          <input type="date" id="dateTo" value="2026-10-05">
+        </div>
+      </div>
+      
+      <!-- Поля отбора ФРД прямо при запросе к SQL DWH -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>ФРД Відправник (опц.):</label>
+          <input type="text" id="frdSender" value="" placeholder="напр. Львів">
+        </div>
+        <div class="form-group">
+          <label>ФРД Отримувач (опц.):</label>
+          <input type="text" id="frdRecipient" value="" placeholder="напр. Одеса">
+        </div>
+      </div>
+
+      <button class="btn-fetch" onclick="loadDataFromDWH()">Отримати дані з DWH</button>
+      <div id="statusMsg" class="status-msg">Вкажіть параметри та натисніть кнопку</div>
+    </div>
+
+    <!-- 2. Локальные срезы (фильтрация полученной выборки) -->
+    <div class="card-panel">
+      <div class="panel-title">2. Локальні зрізи завантаженої вибірки</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Фільтр Відправника:</label>
+          <select id="sliceFrdSender" onchange="applySlicesAndRender()">
+            <option value="">Усі відправники</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Фільтр Отримувача:</label>
+          <select id="sliceFrdRecipient" onchange="applySlicesAndRender()">
+            <option value="">Усі отримувачі</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Навигация -->
+    <button id="backBtn" class="btn-back" onclick="goBack()">← Назад до груп за днями</button>
+    <div id="breadcrumb" class="breadcrumb">Рівень 1: Планова тривалість (дні)</div>
+    
+    <!-- 4. Сводная таблица -->
+    <div class="table-container">
+      <table id="summaryTable">
+        <thead>
+          <tr id="tableHeader">
+            <th>Планова тривалість</th>
+            <th>Кількість ШК</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="2" style="text-align:center; color: var(--text-muted);">Завантажте дані для відображення</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- ==================== ЧАСТЬ 3: КОД (JavaScript) ==================== -->
+  <script>
+    let parcelsData = [];
+    let routePointsData = [];
+
+    const map = L.map('map').setView([48.3794, 31.1656], 6);
+
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+    }).addTo(map);
+
+    let currentLines = [];
+    let currentMarkers = [];
+
+    let currentLevel = 1; 
+    let selectedDays = null;
+
+    // --- ЗАПРОС К PYTHON С ПЕРЕДАЧЕЙ ФРД В СЕРВЕР ---
+    async function loadDataFromDWH() {
+      const dateFrom = document.getElementById('dateFrom').value;
+      const dateTo = document.getElementById('dateTo').value;
+      const frdSender = document.getElementById('frdSender').value.trim();
+      const frdRecipient = document.getElementById('frdRecipient').value.trim();
+      const statusMsg = document.getElementById('statusMsg');
+
+      if (!dateFrom || !dateTo) {
+        alert('Будь ласка, оберіть діапазон дат');
+        return;
+      }
+
+      statusMsg.innerText = 'Завантаження даних з DWH...';
+      statusMsg.style.color = '#38bdf8';
+
+      const url = new URL('http://127.0.0.1:5000/api/data');
+      url.searchParams.append('date_from', dateFrom);
+      url.searchParams.append('date_to', dateTo);
+      if (frdSender) url.searchParams.append('frd_sender', frdSender);
+      if (frdRecipient) url.searchParams.append('frd_recipient', frdRecipient);
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Помилка підключення до сервера');
+        }
+
+        const data = await response.json();
+        parcelsData = data.parcels;
+        routePointsData = data.routes;
+
+        statusMsg.innerText = `Успішно завантажено: ${parcelsData.length} посилок`;
+        statusMsg.style.color = '#4ade80';
+
+        populateSlices();
+
+        currentLevel = 1;
+        renderTable();
+
+      } catch (err) {
+        statusMsg.innerText = 'Помилка: ' + err.message;
+        statusMsg.style.color = '#ef4444';
+      }
+    }
+
+    function populateSlices() {
+      const senders = [...new Set(parcelsData.map(p => p.frdSender).filter(Boolean))].sort();
+      const recipients = [...new Set(parcelsData.map(p => p.frdRecipient).filter(Boolean))].sort();
+
+      const senderSelect = document.getElementById('sliceFrdSender');
+      const recipientSelect = document.getElementById('sliceFrdRecipient');
+
+      senderSelect.innerHTML = '<option value="">Усі відправники</option>' + 
+        senders.map(s => `<option value="${s}">${s}</option>`).join('');
+
+      recipientSelect.innerHTML = '<option value="">Усі отримувачі</option>' + 
+        recipients.map(r => `<option value="${r}">${r}</option>`).join('');
+    }
+
+    function getFilteredParcels() {
+      const senderVal = document.getElementById('sliceFrdSender').value;
+      const recipientVal = document.getElementById('sliceFrdRecipient').value;
+
+      return parcelsData.filter(p => {
+        const matchSender = !senderVal || p.frdSender === senderVal;
+        const matchRecipient = !recipientVal || p.frdRecipient === recipientVal;
+        return matchSender && matchRecipient;
+      });
+    }
+
+    function applySlicesAndRender() {
+      currentLevel = 1;
+      renderTable();
+    }
+
+    function formatDuration(ms) {
+      if (isNaN(ms) || ms < 0) return "—";
+      const totalMinutes = Math.floor(ms / (1000 * 60));
+      const days = Math.floor(totalMinutes / (24 * 60));
+      const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+      const mins = totalMinutes % 60;
+
+      let result = [];
+      if (days > 0) result.push(`${days} дн`);
+      if (hours > 0) result.push(`${hours} год`);
+      if (mins > 0 || result.length === 0) result.push(`${mins} хв`);
+      return result.join(' ');
+    }
+
+    function parseDate(dateStr) {
+      return new Date(dateStr.replace(' ', 'T'));
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('tableBody');
+      const header = document.getElementById('tableHeader');
+      const backBtn = document.getElementById('backBtn');
+      const breadcrumb = document.getElementById('breadcrumb');
+
+      tbody.innerHTML = '';
+      const filteredData = getFilteredParcels();
+
+      if (filteredData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-muted);">За даними зрізами нічого не знайдено</td></tr>';
+        return;
+      }
+
+      if (currentLevel === 1) {
+        backBtn.style.display = 'none';
+        breadcrumb.innerText = 'Рівень 1: Планова тривалість (дні)';
+        header.innerHTML = `<th>Планова тривалість</th><th>Кількість ШК</th>`;
+
+        const grouped = groupBy(filteredData, 'plannedDays');
+        const sortedDays = Object.keys(grouped).sort((a, b) => Number(a) - Number(b));
+
+        for (let days of sortedDays) {
+          const items = grouped[days];
+
+          const tr = document.createElement('tr');
+          tr.className = 'clickable';
+          tr.onclick = () => { selectedDays = days; currentLevel = 2; renderTable(); };
+          tr.innerHTML = `
+            <td><b>${days} дн.</b></td>
+            <td><span class="badge-days">${items.length} ШК</span></td>
+          `;
+          tbody.appendChild(tr);
+        }
+
+      } else if (currentLevel === 2) {
+        backBtn.style.display = 'inline-block';
+        breadcrumb.innerText = `Тривалість: ${selectedDays} дн. → Список ШК`;
+        header.innerHTML = `
+          <th>ШК / ЕН</th>
+          <th>Створення</th>
+          <th>Тип</th>
+          <th>Склад Відправник → Отримувач</th>
+        `;
+
+        const parcelsForDays = filteredData.filter(p => String(p.plannedDays) === String(selectedDays));
+
+        parcelsForDays.forEach(parcel => {
+          const tr = document.createElement('tr');
+          tr.className = 'clickable';
+          tr.onclick = () => drawRouteOnMap(parcel.barcode);
+          
+          tr.innerHTML = `
+            <td><b>${parcel.barcode}</b><br><span style="font-size:0.7rem; color:var(--text-muted);">${parcel.EN}</span></td>
+            <td>${parcel.createDate || '—'}</td>
+            <td><b>${parcel.cargoType}</b></td>
+            <td>
+              ${parcel.whSender || '—'} 
+              <span style="color:var(--accent);">→</span> 
+              ${parcel.whRecipient || '—'}
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    }
+
+// --- ОТОБРАЖЕНИЕ МАРШРУТА НА КАРТЕ С ОБРАБОТКОЙ ДУБЛИКАТОВ КООРДИНАТ ---
+    function drawRouteOnMap(barcode) {
+      currentLines.forEach(line => map.removeLayer(line));
+      currentMarkers.forEach(marker => map.removeLayer(marker));
+      currentLines = [];
+      currentMarkers = [];
+
+      const points = routePointsData.filter(p => p.barcode === barcode);
+
+      if (points.length === 0) {
+        alert('Маршрут для даного ШК не знайдено');
+        return;
+      }
+
+      const boundsGroup = L.featureGroup();
+      
+      const processedPoints = [];
+      const coordTracker = {};
+
+      // 1. Расчет координат с микро-сдвигом для совпадающих точек
+      points.forEach((pt, index) => {
+        const rawLat = Number(pt.lat);
+        const rawLng = Number(pt.lng);
+        const coordKey = `${rawLat.toFixed(5)},${rawLng.toFixed(5)}`;
+        
+        let displayLat = rawLat;
+        let displayLng = rawLng;
+        let isDuplicate = false;
+        let sameAsIndex = null;
+
+        if (coordTracker[coordKey] !== undefined) {
+          isDuplicate = true;
+          sameAsIndex = coordTracker[coordKey].firstIndex;
+          coordTracker[coordKey].count++;
+          
+          // Микро-сдвиг на ~25 метров по кругу для дубликата
+          const dupCount = coordTracker[coordKey].count - 1;
+          const angle = (dupCount * 90) * (Math.PI / 180);
+          const offset = 0.0003; 
+          displayLat += offset * Math.cos(angle);
+          displayLng += offset * Math.sin(angle);
+        } else {
+          coordTracker[coordKey] = { firstIndex: index + 1, count: 1 };
+        }
+
+        processedPoints.push({
+          ...pt,
+          displayLat,
+          displayLng,
+          isDuplicate,
+          sameAsIndex
+        });
+
+        const arrTime = parseDate(pt.arrivalTime);
+        const depTime = parseDate(pt.departureTime);
+        const timeAtWarehouse = formatDuration(depTime - arrTime);
+
+        // Кастомный нумерованный маркер (голубой для обычных, оранжевый для дубликатов)
+        const customIcon = L.divIcon({
+          className: 'custom-map-marker',
+          html: `<div style="
+            background: ${isDuplicate ? '#f59e0b' : '#38bdf8'};
+            color: #0f172a;
+            font-weight: 700;
+            font-size: 11px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+          ">${index + 1}</div>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+
+        const warningBadge = isDuplicate 
+          ? `<div style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); padding: 4px 8px; border-radius: 6px; font-size: 0.72rem; margin-bottom: 8px;">
+               ⚠️ Збіг координат з Вузлом ${sameAsIndex} (зміщено для виділення)
+             </div>`
+          : '';
+
+        const popupContent = `
+          <div class="route-popup" style="font-size: 13px;">
+            ${warningBadge}
+            <b style="font-size: 14px;">Вузол ${index + 1}: ${pt.subdivision}</b><br><br>
+            <b>Приїзд:</b> ${pt.arrivalTime}<br>
+            <b>Виїзд:</b> ${pt.departureTime}<br>
+            <hr style="margin: 6px 0; border-color: var(--border);">
+            <b>Час перебування:</b> <span style="color: var(--accent-green); font-weight: bold;">${timeAtWarehouse}</span>
+          </div>
+        `;
+
+        const marker = L.marker([displayLat, displayLng], { icon: customIcon })
+          .addTo(map)
+          .bindPopup(popupContent);
+
+        currentMarkers.push(marker);
+        boundsGroup.addLayer(marker);
+      });
+
+      // 2. Отрисовка бегущей линии между смещенными точками
+      for (let i = 0; i < processedPoints.length - 1; i++) {
+        const p1 = processedPoints[i];
+        const p2 = processedPoints[i + 1];
+
+        const bgLine = L.polyline([[p1.displayLat, p1.displayLng], [p2.displayLat, p2.displayLng]], {
+          color: '#38bdf8',
+          weight: 5,
+          opacity: 0.5
+        }).addTo(map);
+
+        const animLine = L.polyline([[p1.displayLat, p1.displayLng], [p2.displayLat, p2.displayLng]], {
+          color: '#ffffff',
+          weight: 3,
+          opacity: 0.9,
+          className: 'animated-line'
+        }).addTo(map);
+
+        const depP1 = parseDate(p1.departureTime);
+        const arrP2 = parseDate(p2.arrivalTime);
+        const travelTime = formatDuration(arrP2 - depP1);
+
+        const linePopupContent = `
+          <div class="route-popup" style="font-size: 13px;">
+            <b>Перегін:</b> ${p1.subdivision} → ${p2.subdivision}<br>
+            <b>Виїзд:</b> ${p1.departureTime}<br>
+            <b>Приїзд:</b> ${p2.arrivalTime}<br>
+            <hr style="margin: 6px 0; border-color: var(--border);">
+            <b>Час у дорозі:</b> <span style="color: var(--accent); font-weight: bold;">${travelTime}</span>
+          </div>
+        `;
+
+        bgLine.bindPopup(linePopupContent);
+        animLine.bindPopup(linePopupContent);
+
+        currentLines.push(bgLine, animLine);
+      }
+
+      map.fitBounds(boundsGroup.getBounds(), { padding: [50, 50] });
+    }
+
+    function goBack() {
+      if (currentLevel > 1) {
+        currentLevel--;
+        renderTable();
+      }
+    }
+
+    function groupBy(array, key) {
+      return array.reduce((result, currentValue) => {
+        (result[currentValue[key]] = result[currentValue[key]] || []).push(currentValue);
+        return result;
+      }, {});
+    }
+  </script>
+</body>
+</html>
