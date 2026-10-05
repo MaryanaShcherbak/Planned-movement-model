@@ -37,7 +37,6 @@
       gap: 8px;
     }
 
-    /* Расширенная компактная панель (580px) */
     #sidebar {
       width: 580px;
       flex-shrink: 0;
@@ -53,7 +52,6 @@
       gap: 8px;
     }
 
-    /* Карта стала компактнее по ширине */
     #map {
       flex-grow: 1;
       height: 100%;
@@ -97,7 +95,6 @@
       color: #0f172a;
     }
 
-    /* Сверхкомпактные карточки параметров */
     .card-panel {
       background: var(--bg-body);
       border: 1px solid var(--border);
@@ -197,11 +194,10 @@
       border: 1px solid var(--border);
     }
 
-    /* КОНТЕЙНЕР ТАБЛИЦЫ: Занимает ВСЁ оставшееся место по высоте */
     .table-container {
       border: 1px solid var(--border);
       border-radius: 8px;
-      flex: 1; /* Динамически растягивается вниз */
+      flex: 1;
       min-height: 220px;
       overflow-y: auto;
       background: var(--bg-body);
@@ -405,15 +401,14 @@
   <!-- ==================== ЧАСТЬ 2: ВЕРСТКА (HTML) ==================== -->
   <div id="sidebar">
     <div class="header-row">
-      <h2>Сводна аналітика DWH</h2>
+      <h2>Аналітика швидкості</h2>
       <button class="btn-help" onclick="openHelpModal()" title="Інструкція з запуску">?</button>
     </div>
 
-    <!-- 1. Компактный блок параметров SQL-запроса -->
+    <!-- 1. Запрос DWH -->
     <div class="card-panel">
       <div class="panel-title">1. Запит до бази DWH</div>
 
-      <!-- Все 4 основных поля параметров в 1 строке! -->
       <div class="form-row">
         <div class="form-group">
           <label>Дата з:</label>
@@ -424,16 +419,15 @@
           <input type="date" id="dateTo" value="2026-10-05">
         </div>
         <div class="form-group">
-          <label>ФРД Відпр.:</label>
+          <label>ФРД Відправник:</label>
           <input type="text" id="frdSender" value="" placeholder="Львів">
         </div>
         <div class="form-group">
-          <label>ФРД Отрим.:</label>
+          <label>ФРД Отримувач:</label>
           <input type="text" id="frdRecipient" value="" placeholder="Одеса">
         </div>
       </div>
       
-      <!-- Поиск по ШК и Кнопка выгрузки совмещены в 1 строке! -->
       <div class="form-row">
         <div class="form-group" style="flex: 2;">
           <label style="color: var(--accent);">Пошук за ШК / ЕН:</label>
@@ -445,7 +439,7 @@
       <div id="statusMsg" class="status-msg">Вкажіть параметри та натисніть кнопку</div>
     </div>
 
-    <!-- 2. Компактные локальные срезы -->
+    <!-- 2. Локальные срезы -->
     <div class="card-panel">
       <div class="panel-title">2. Локальні зрізи вибірки</div>
       <div class="form-row">
@@ -461,6 +455,15 @@
             <option value="">Усі отримувачі</option>
           </select>
         </div>
+        <!-- ВЫПАДАЮЩИЙ СПИСОК ФИЛЬТРАЦИИ ЗАКАЗАННОЙ ДАТЫ -->
+        <div class="form-group">
+          <label>Замовлена дата 📅:</label>
+          <select id="sliceRequestedDate" onchange="applySlicesAndRender()">
+            <option value="">Усі посилки</option>
+            <option value="yes">Тільки з датою 📅</option>
+            <option value="no">Без замовленої дати</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -470,7 +473,7 @@
       <div id="breadcrumb" class="breadcrumb" style="flex: 1;">Рівень 1: Планова тривалість (дні)</div>
     </div>
     
-    <!-- 4. Сводная таблица (Занимает всё оставшееся высотное пространство) -->
+    <!-- 4. Таблица -->
     <div class="table-container">
       <table id="summaryTable">
         <thead>
@@ -486,7 +489,6 @@
     </div>
   </div>
 
-  <!-- Компактная карта справа -->
   <div id="map"></div>
 
   <!-- Модальное окно инструкции -->
@@ -529,7 +531,6 @@
 
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19,
-      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
     }).addTo(map);
 
     let currentLines = [];
@@ -546,7 +547,6 @@
       document.getElementById('helpModal').style.display = 'none';
     }
 
-    // --- 1. ВВОД В ПОЛЕ ШК: ЛОКАЛЬНЫЙ ПОИСК ИЛИ ПОДСКАЗКА ---
     function handleBarcodeTyping() {
       const searchVal = document.getElementById('searchBarcode').value.trim().toLowerCase();
       const statusMsg = document.getElementById('statusMsg');
@@ -589,7 +589,6 @@
       statusMsg.style.color = '#f59e0b';
     }
 
-    // --- 2. ЗАПРОС К ВЕБ-СЕРВЕРУ PYTHON / DWH ---
     async function loadDataFromDWH() {
       const dateFrom = document.getElementById('dateFrom').value;
       const dateTo = document.getElementById('dateTo').value;
@@ -659,19 +658,30 @@
         recipients.map(r => `<option value="${r}">${r}</option>`).join('');
     }
 
+    // --- ЛОКАЛЬНАЯ ФИЛЬТРАЦИЯ (СРЕЗЫ И ЗАКАЗАННАЯ ДАТА) ---
     function getFilteredParcels() {
       const senderVal = document.getElementById('sliceFrdSender').value;
       const recipientVal = document.getElementById('sliceFrdRecipient').value;
+      const reqDateMode = document.getElementById('sliceRequestedDate').value; // '', 'yes', or 'no'
       const searchVal = document.getElementById('searchBarcode').value.trim().toLowerCase();
 
       return parcelsData.filter(p => {
         const matchSender = !senderVal || p.frdSender === senderVal;
         const matchRecipient = !recipientVal || p.frdRecipient === recipientVal;
+        
+        // Фильтрация по наличию / отсутствию заказанной даты
+        let matchReqDate = true;
+        if (reqDateMode === 'yes') {
+          matchReqDate = (p.hasRequestedDate === 1);
+        } else if (reqDateMode === 'no') {
+          matchReqDate = (p.hasRequestedDate === 0);
+        }
+
         const matchSearch = !searchVal || 
           (p.barcode && String(p.barcode).toLowerCase().includes(searchVal)) ||
           (p.EN && String(p.EN).toLowerCase().includes(searchVal));
 
-        return matchSender && matchRecipient && matchSearch;
+        return matchSender && matchRecipient && matchReqDate && matchSearch;
       });
     }
 
@@ -698,7 +708,6 @@
       return new Date(dateStr.replace(' ', 'T'));
     }
 
-    // --- 3. ОТОБРАЖЕНИЕ СВОДНОЙ ТАБЛИЦЫ ---
     function renderTable() {
       const tbody = document.getElementById('tableBody');
       const header = document.getElementById('tableHeader');
@@ -759,8 +768,12 @@
           tr.className = 'clickable';
           tr.onclick = () => drawRouteOnMap(parcel.barcode);
           
+          const reqDateBadge = parcel.hasRequestedDate === 1 
+            ? ' <span title="Замовлена клієнтом дата доставки" style="font-size:0.85rem;">📅</span>' 
+            : '';
+
           tr.innerHTML = `
-            <td><b>${parcel.barcode}</b><br><span style="font-size:0.68rem; color:var(--text-muted);">${parcel.EN}</span></td>
+            <td><b>${parcel.barcode}</b>${reqDateBadge}<br><span style="font-size:0.68rem; color:var(--text-muted);">${parcel.EN}</span></td>
             <td>${parcel.createDate || '—'}</td>
             <td><b>${parcel.cargoType}</b></td>
             <td>
@@ -774,7 +787,6 @@
       }
     }
 
-    // --- 4. ОТОБРАЖЕНИЕ МАРШРУТА НА КАРТЕ ---
     function drawRouteOnMap(barcode) {
       currentLines.forEach(line => map.removeLayer(line));
       currentMarkers.forEach(marker => map.removeLayer(marker));
@@ -899,7 +911,7 @@
             <b>Перегін:</b> ${p1.subdivision} → ${p2.subdivision}<br>
             <b>Виїзд:</b> ${p1.departureTime}<br>
             <b>Приїзд:</b> ${p2.arrivalTime}<br>
-            <hr style="margin: 5px 0; border-color: var(--border);">
+            <hr style="margin: 6px 0; border-color: var(--border);">
             <b>Час у дорозі:</b> <span style="color: var(--accent); font-weight: bold;">${travelTime}</span>
           </div>
         `;
