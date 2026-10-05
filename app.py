@@ -12,7 +12,6 @@ CORS(app)
 SERVER = "biadhock.np.work"
 DATABASE = "DWH"
 
-# Используем точный драйвер и адрес сервера из вашего скрипта
 CONN_STR = f"DRIVER={{SQL Server}};SERVER={SERVER};DATABASE={DATABASE};Trusted_Connection=yes;"
 
 def get_db_connection():
@@ -22,9 +21,11 @@ def get_db_connection():
 def get_data():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
+    search_barcode = request.args.get('barcode', '').strip()
     frd_sender = request.args.get('frd_sender', '').strip()
     frd_recipient = request.args.get('frd_recipient', '').strip()
 
+    # Даты обязательны для оптимизации запросов в DWH
     if not date_from or not date_to:
         return jsonify({'error': 'Параметри date_from та date_to є обов\'язковими'}), 400
 
@@ -66,6 +67,9 @@ def get_data():
     """
     params_barcode = [date_from, date_to]
 
+    if search_barcode:
+        sql_barcode += " AND bp.Barcode = ?"
+        params_barcode.append(search_barcode)
     if frd_sender:
         sql_barcode += " AND frd1.CityName = ?"
         params_barcode.append(frd_sender)
@@ -97,10 +101,12 @@ def get_data():
     WHERE ewb.iOwnerDocumentTypeID <> 7
       AND ewb.DeletionMark = 0
       AND ewb.dt BETWEEN ? AND ?
-      
     """
     params_bmp = [date_from, date_to]
 
+    if search_barcode:
+        sql_bmp += " AND bp.Barcode = ?"
+        params_bmp.append(search_barcode)
     if frd_sender:
         sql_bmp += " AND frd1.CityName = ?"
         params_bmp.append(frd_sender)
@@ -114,12 +120,10 @@ def get_data():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Выполнение 1-го запроса
         cursor.execute(sql_barcode, params_barcode)
         cols1 = [column[0] for column in cursor.description]
         parcels = [dict(zip(cols1, row)) for row in cursor.fetchall()]
 
-        # Выполнение 2-го запроса
         cursor.execute(sql_bmp, params_bmp)
         cols2 = [column[0] for column in cursor.description]
         routes = [dict(zip(cols2, row)) for row in cursor.fetchall()]

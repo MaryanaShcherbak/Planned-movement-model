@@ -8,7 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <!-- ==================== ЧАСТЬ 1: ДИЗАЙН (CSS)  ==================== -->
+  <!-- ==================== ЧАСТЬ 1: ДИЗАЙН (CSS) ==================== -->
   <style>
     :root {
       --bg-body: #0f172a;       
@@ -33,55 +33,83 @@
       overflow: hidden;
       background-color: var(--bg-body);
       color: var(--text-main);
-      padding: 12px;
-      gap: 12px;
+      padding: 8px;
+      gap: 8px;
     }
 
-    /* Левая панель управления и сводной таблицы */
+    /* Расширенная компактная панель (580px) */
     #sidebar {
-      width: 600px;
+      width: 580px;
       flex-shrink: 0;
       height: 100%;
-      padding: 18px;
+      padding: 12px;
       overflow-y: auto;
       background-color: var(--bg-sidebar);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 10px;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 8px;
     }
 
-    /* Правая часть - Карта */
+    /* Карта стала компактнее по ширине */
     #map {
       flex-grow: 1;
       height: 100%;
-      border-radius: 12px;
+      border-radius: 10px;
       overflow: hidden;
       border: 1px solid var(--border);
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
     }
 
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
     h2 {
-      font-size: 1.05rem;
+      font-size: 0.95rem;
       text-transform: uppercase;
-      letter-spacing: 1.2px;
+      letter-spacing: 1px;
       color: var(--accent);
     }
 
+    .btn-help {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--bg-body);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .btn-help:hover {
+      background: var(--accent);
+      color: #0f172a;
+    }
+
+    /* Сверхкомпактные карточки параметров */
     .card-panel {
       background: var(--bg-body);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px;
+      border-radius: 8px;
+      padding: 8px 10px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 6px;
     }
 
     .panel-title {
-      font-size: 0.72rem;
+      font-size: 0.65rem;
       text-transform: uppercase;
       color: var(--accent);
       font-weight: 700;
@@ -90,32 +118,35 @@
 
     .form-row {
       display: flex;
-      gap: 10px;
+      gap: 6px;
+      align-items: flex-end;
     }
 
     .form-group {
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 2px;
     }
 
     .form-group label {
-      font-size: 0.68rem;
+      font-size: 0.62rem;
       text-transform: uppercase;
       color: var(--text-muted);
       font-weight: 600;
+      white-space: nowrap;
     }
 
     input[type="date"], input[type="text"], select {
       width: 100%;
-      padding: 7px 10px;
+      padding: 4px 7px;
       background-color: var(--bg-sidebar);
       color: var(--text-main);
       border: 1px solid var(--border);
-      border-radius: 6px;
-      font-size: 0.8rem;
+      border-radius: 5px;
+      font-size: 0.75rem;
       outline: none;
+      height: 28px;
     }
 
     input:focus, select:focus {
@@ -123,16 +154,17 @@
     }
 
     .btn-fetch {
-      width: 100%;
-      padding: 9px;
+      padding: 0 12px;
+      height: 28px;
       background-color: var(--accent);
       color: #0f172a;
       font-weight: 700;
       border: none;
-      border-radius: 6px;
+      border-radius: 5px;
       cursor: pointer;
-      font-size: 0.82rem;
+      font-size: 0.75rem;
       transition: all 0.2s ease;
+      white-space: nowrap;
     }
 
     .btn-fetch:hover {
@@ -141,14 +173,14 @@
 
     .btn-back {
       display: none;
-      padding: 7px 12px;
+      padding: 4px 10px;
       background-color: var(--accent);
       color: #0f172a;
       font-weight: 700;
       border: none;
-      border-radius: 6px;
+      border-radius: 5px;
       cursor: pointer;
-      font-size: 0.78rem;
+      font-size: 0.72rem;
       align-self: flex-start;
     }
 
@@ -157,27 +189,26 @@
     }
 
     .breadcrumb {
-      font-size: 0.78rem;
+      font-size: 0.72rem;
       color: var(--text-muted);
       background: var(--bg-body);
-      padding: 8px 12px;
-      border-radius: 8px;
+      padding: 5px 8px;
+      border-radius: 6px;
       border: 1px solid var(--border);
     }
 
-    /* Контейнер таблицы с ползунком */
+    /* КОНТЕЙНЕР ТАБЛИЦЫ: Занимает ВСЁ оставшееся место по высоте */
     .table-container {
       border: 1px solid var(--border);
       border-radius: 8px;
-      max-height: 380px;
+      flex: 1; /* Динамически растягивается вниз */
+      min-height: 220px;
       overflow-y: auto;
-      flex-grow: 1;
       background: var(--bg-body);
     }
 
-    /* Кастомный ползунок */
     .table-container::-webkit-scrollbar {
-      width: 6px;
+      width: 5px;
     }
     .table-container::-webkit-scrollbar-track {
       background: var(--bg-body);
@@ -193,11 +224,11 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.82rem;
+      font-size: 0.78rem;
     }
 
     th, td {
-      padding: 9px 11px;
+      padding: 6px 8px;
       text-align: left;
       border-bottom: 1px solid var(--border);
     }
@@ -209,7 +240,7 @@
       color: var(--text-muted);
       font-weight: 600;
       text-transform: uppercase;
-      font-size: 0.68rem;
+      font-size: 0.65rem;
       z-index: 10;
     }
 
@@ -226,16 +257,120 @@
       background-color: rgba(74, 222, 128, 0.12);
       color: var(--accent-green);
       border: 1px solid rgba(74, 222, 128, 0.3);
-      padding: 3px 8px;
-      border-radius: 12px;
-      font-size: 0.75rem;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-size: 0.7rem;
       font-weight: 600;
     }
 
     .status-msg {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       color: var(--text-muted);
       text-align: center;
+      line-height: 1.2;
+    }
+
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(4px);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-box {
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 90%;
+      max-width: 500px;
+      padding: 18px 20px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      color: var(--accent);
+      font-size: 0.95rem;
+    }
+
+    .close-btn {
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 1.1rem;
+    }
+
+    .close-btn:hover {
+      color: #ef4444;
+    }
+
+    .instruction-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+
+    .instruction-step {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .step-num {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.7rem;
+      flex-shrink: 0;
+    }
+
+    .github-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+      padding: 6px 10px;
+      background-color: #24292e;
+      color: #ffffff;
+      border: 1px solid #444c56;
+      border-radius: 5px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.75rem;
+    }
+
+    code.code-badge {
+      background: var(--bg-body);
+      color: var(--accent-green);
+      border: 1px solid var(--border);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.75rem;
     }
 
     .leaflet-popup-content-wrapper, .leaflet-popup-tip {
@@ -243,12 +378,11 @@
       color: var(--text-main) !important;
       border: 1px solid var(--border) !important;
       border-radius: 8px !important;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.6) !important;
     }
 
     .leaflet-popup-content {
-      margin: 12px 14px !important;
-      line-height: 1.5 !important;
+      margin: 10px 12px !important;
+      line-height: 1.4 !important;
     }
 
     .route-popup b {
@@ -270,11 +404,16 @@
 
   <!-- ==================== ЧАСТЬ 2: ВЕРСТКА (HTML) ==================== -->
   <div id="sidebar">
-    <h2>Сводна аналітика DWH</h2>
+    <div class="header-row">
+      <h2>Сводна аналітика DWH</h2>
+      <button class="btn-help" onclick="openHelpModal()" title="Інструкція з запуску">?</button>
+    </div>
 
-    <!-- 1. Параметры SQL-запроса -->
+    <!-- 1. Компактный блок параметров SQL-запроса -->
     <div class="card-panel">
       <div class="panel-title">1. Запит до бази DWH</div>
+
+      <!-- Все 4 основных поля параметров в 1 строке! -->
       <div class="form-row">
         <div class="form-group">
           <label>Дата з:</label>
@@ -284,27 +423,31 @@
           <label>Дата по:</label>
           <input type="date" id="dateTo" value="2026-10-05">
         </div>
+        <div class="form-group">
+          <label>ФРД Відпр.:</label>
+          <input type="text" id="frdSender" value="" placeholder="Львів">
+        </div>
+        <div class="form-group">
+          <label>ФРД Отрим.:</label>
+          <input type="text" id="frdRecipient" value="" placeholder="Одеса">
+        </div>
       </div>
       
-      <!-- Поля отбора ФРД прямо при запросе к SQL DWH -->
+      <!-- Поиск по ШК и Кнопка выгрузки совмещены в 1 строке! -->
       <div class="form-row">
-        <div class="form-group">
-          <label>ФРД Відправник (опц.):</label>
-          <input type="text" id="frdSender" value="" placeholder="напр. Львів">
+        <div class="form-group" style="flex: 2;">
+          <label style="color: var(--accent);">Пошук за ШК / ЕН:</label>
+          <input type="text" id="searchBarcode" placeholder="введіть ШК або ЕН..." oninput="handleBarcodeTyping()">
         </div>
-        <div class="form-group">
-          <label>ФРД Отримувач (опц.):</label>
-          <input type="text" id="frdRecipient" value="" placeholder="напр. Одеса">
-        </div>
+        <button class="btn-fetch" style="flex: 1;" onclick="loadDataFromDWH()">Отримати з DWH</button>
       </div>
 
-      <button class="btn-fetch" onclick="loadDataFromDWH()">Отримати дані з DWH</button>
       <div id="statusMsg" class="status-msg">Вкажіть параметри та натисніть кнопку</div>
     </div>
 
-    <!-- 2. Локальные срезы (фильтрация полученной выборки) -->
+    <!-- 2. Компактные локальные срезы -->
     <div class="card-panel">
-      <div class="panel-title">2. Локальні зрізи завантаженої вибірки</div>
+      <div class="panel-title">2. Локальні зрізи вибірки</div>
       <div class="form-row">
         <div class="form-group">
           <label>Фільтр Відправника:</label>
@@ -322,10 +465,12 @@
     </div>
 
     <!-- 3. Навигация -->
-    <button id="backBtn" class="btn-back" onclick="goBack()">← Назад до груп за днями</button>
-    <div id="breadcrumb" class="breadcrumb">Рівень 1: Планова тривалість (дні)</div>
+    <div class="form-row" style="align-items: center;">
+      <button id="backBtn" class="btn-back" onclick="goBack()">← Назад</button>
+      <div id="breadcrumb" class="breadcrumb" style="flex: 1;">Рівень 1: Планова тривалість (дні)</div>
+    </div>
     
-    <!-- 4. Сводная таблица -->
+    <!-- 4. Сводная таблица (Занимает всё оставшееся высотное пространство) -->
     <div class="table-container">
       <table id="summaryTable">
         <thead>
@@ -341,7 +486,37 @@
     </div>
   </div>
 
+  <!-- Компактная карта справа -->
   <div id="map"></div>
+
+  <!-- Модальное окно инструкции -->
+  <div id="helpModal" class="modal-overlay" onclick="if(event.target === this) closeHelpModal()">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Інструкція з запуску локального сервера</h3>
+        <span class="close-btn" onclick="closeHelpModal()">✖</span>
+      </div>
+      <div class="instruction-list">
+        <div class="instruction-step">
+          <span class="step-num">1</span>
+          <div>
+            Завантажте оновлену версію проекту з GitHub:
+            <br>
+            <a href="https://github.com/MaryanaShcherbak/Planned-movement-model" target="_blank" class="github-btn">
+              <svg height="14" width="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+              Завантажити з GitHub
+            </a>
+          </div>
+        </div>
+        <div class="instruction-step">
+          <span class="step-num">2</span>
+          <div>
+            Запустіть файл <code class="code-badge">app.exe</code>.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -363,10 +538,62 @@
     let currentLevel = 1; 
     let selectedDays = null;
 
-    // --- ЗАПРОС К PYTHON С ПЕРЕДАЧЕЙ ФРД В СЕРВЕР ---
+    function openHelpModal() {
+      document.getElementById('helpModal').style.display = 'flex';
+    }
+
+    function closeHelpModal() {
+      document.getElementById('helpModal').style.display = 'none';
+    }
+
+    // --- 1. ВВОД В ПОЛЕ ШК: ЛОКАЛЬНЫЙ ПОИСК ИЛИ ПОДСКАЗКА ---
+    function handleBarcodeTyping() {
+      const searchVal = document.getElementById('searchBarcode').value.trim().toLowerCase();
+      const statusMsg = document.getElementById('statusMsg');
+
+      if (!searchVal) {
+        if (parcelsData.length > 0) {
+          statusMsg.innerText = `Завантажено: ${parcelsData.length} посилок`;
+          statusMsg.style.color = '#4ade80';
+        } else {
+          statusMsg.innerText = 'Вкажіть параметри та натисніть кнопку';
+          statusMsg.style.color = 'var(--text-muted)';
+        }
+        currentLevel = 1;
+        selectedDays = null;
+        renderTable();
+        return;
+      }
+
+      if (parcelsData.length > 0) {
+        const matches = parcelsData.filter(p => 
+          (p.barcode && String(p.barcode).toLowerCase().includes(searchVal)) ||
+          (p.EN && String(p.EN).toLowerCase().includes(searchVal))
+        );
+
+        if (matches.length > 0) {
+          statusMsg.innerText = `Знайдено у вибірці: ${matches.length} посилок`;
+          statusMsg.style.color = '#4ade80';
+          selectedDays = 'search';
+          currentLevel = 2;
+          renderTable();
+
+          if (matches.length === 1) {
+            drawRouteOnMap(matches[0].barcode);
+          }
+          return;
+        }
+      }
+
+      statusMsg.innerText = 'У локальних даних не знайдено. Натисніть «Отримати з DWH» для запиту в БД';
+      statusMsg.style.color = '#f59e0b';
+    }
+
+    // --- 2. ЗАПРОС К ВЕБ-СЕРВЕРУ PYTHON / DWH ---
     async function loadDataFromDWH() {
       const dateFrom = document.getElementById('dateFrom').value;
       const dateTo = document.getElementById('dateTo').value;
+      const searchBarcode = document.getElementById('searchBarcode').value.trim();
       const frdSender = document.getElementById('frdSender').value.trim();
       const frdRecipient = document.getElementById('frdRecipient').value.trim();
       const statusMsg = document.getElementById('statusMsg');
@@ -382,6 +609,7 @@
       const url = new URL('http://127.0.0.1:5000/api/data');
       url.searchParams.append('date_from', dateFrom);
       url.searchParams.append('date_to', dateTo);
+      if (searchBarcode) url.searchParams.append('barcode', searchBarcode);
       if (frdSender) url.searchParams.append('frd_sender', frdSender);
       if (frdRecipient) url.searchParams.append('frd_recipient', frdRecipient);
 
@@ -396,13 +624,20 @@
         parcelsData = data.parcels;
         routePointsData = data.routes;
 
-        statusMsg.innerText = `Успішно завантажено: ${parcelsData.length} посилок`;
+        statusMsg.innerText = `Успішно завантажено з DWH: ${parcelsData.length} посилок`;
         statusMsg.style.color = '#4ade80';
 
         populateSlices();
 
-        currentLevel = 1;
-        renderTable();
+        if (searchBarcode && parcelsData.length > 0) {
+          selectedDays = 'search';
+          currentLevel = 2;
+          renderTable();
+          drawRouteOnMap(parcelsData[0].barcode);
+        } else {
+          currentLevel = 1;
+          renderTable();
+        }
 
       } catch (err) {
         statusMsg.innerText = 'Помилка: ' + err.message;
@@ -427,11 +662,16 @@
     function getFilteredParcels() {
       const senderVal = document.getElementById('sliceFrdSender').value;
       const recipientVal = document.getElementById('sliceFrdRecipient').value;
+      const searchVal = document.getElementById('searchBarcode').value.trim().toLowerCase();
 
       return parcelsData.filter(p => {
         const matchSender = !senderVal || p.frdSender === senderVal;
         const matchRecipient = !recipientVal || p.frdRecipient === recipientVal;
-        return matchSender && matchRecipient;
+        const matchSearch = !searchVal || 
+          (p.barcode && String(p.barcode).toLowerCase().includes(searchVal)) ||
+          (p.EN && String(p.EN).toLowerCase().includes(searchVal));
+
+        return matchSender && matchRecipient && matchSearch;
       });
     }
 
@@ -458,6 +698,7 @@
       return new Date(dateStr.replace(' ', 'T'));
     }
 
+    // --- 3. ОТОБРАЖЕНИЕ СВОДНОЙ ТАБЛИЦЫ ---
     function renderTable() {
       const tbody = document.getElementById('tableBody');
       const header = document.getElementById('tableHeader');
@@ -468,7 +709,7 @@
       const filteredData = getFilteredParcels();
 
       if (filteredData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-muted);">За даними зрізами нічого не знайдено</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-muted);">За вказаними критеріями нічого не знайдено</td></tr>';
         return;
       }
 
@@ -495,7 +736,13 @@
 
       } else if (currentLevel === 2) {
         backBtn.style.display = 'inline-block';
-        breadcrumb.innerText = `Тривалість: ${selectedDays} дн. → Список ШК`;
+        
+        if (selectedDays === 'search') {
+          breadcrumb.innerText = `Результати пошуку (${filteredData.length})`;
+        } else {
+          breadcrumb.innerText = `Тривалість: ${selectedDays} дн. → Список ШК`;
+        }
+
         header.innerHTML = `
           <th>ШК / ЕН</th>
           <th>Створення</th>
@@ -503,7 +750,9 @@
           <th>Склад Відправник → Отримувач</th>
         `;
 
-        const parcelsForDays = filteredData.filter(p => String(p.plannedDays) === String(selectedDays));
+        const parcelsForDays = (selectedDays === 'search') 
+          ? filteredData 
+          : filteredData.filter(p => String(p.plannedDays) === String(selectedDays));
 
         parcelsForDays.forEach(parcel => {
           const tr = document.createElement('tr');
@@ -511,7 +760,7 @@
           tr.onclick = () => drawRouteOnMap(parcel.barcode);
           
           tr.innerHTML = `
-            <td><b>${parcel.barcode}</b><br><span style="font-size:0.7rem; color:var(--text-muted);">${parcel.EN}</span></td>
+            <td><b>${parcel.barcode}</b><br><span style="font-size:0.68rem; color:var(--text-muted);">${parcel.EN}</span></td>
             <td>${parcel.createDate || '—'}</td>
             <td><b>${parcel.cargoType}</b></td>
             <td>
@@ -525,7 +774,7 @@
       }
     }
 
-// --- ОТОБРАЖЕНИЕ МАРШРУТА НА КАРТЕ С ОБРАБОТКОЙ ДУБЛИКАТОВ КООРДИНАТ ---
+    // --- 4. ОТОБРАЖЕНИЕ МАРШРУТА НА КАРТЕ ---
     function drawRouteOnMap(barcode) {
       currentLines.forEach(line => map.removeLayer(line));
       currentMarkers.forEach(marker => map.removeLayer(marker));
@@ -540,11 +789,9 @@
       }
 
       const boundsGroup = L.featureGroup();
-      
       const processedPoints = [];
       const coordTracker = {};
 
-      // 1. Расчет координат с микро-сдвигом для совпадающих точек
       points.forEach((pt, index) => {
         const rawLat = Number(pt.lat);
         const rawLng = Number(pt.lng);
@@ -560,7 +807,6 @@
           sameAsIndex = coordTracker[coordKey].firstIndex;
           coordTracker[coordKey].count++;
           
-          // Микро-сдвиг на ~25 метров по кругу для дубликата
           const dupCount = coordTracker[coordKey].count - 1;
           const angle = (dupCount * 90) * (Math.PI / 180);
           const offset = 0.0003; 
@@ -582,7 +828,6 @@
         const depTime = parseDate(pt.departureTime);
         const timeAtWarehouse = formatDuration(depTime - arrTime);
 
-        // Кастомный нумерованный маркер (голубой для обычных, оранжевый для дубликатов)
         const customIcon = L.divIcon({
           className: 'custom-map-marker',
           html: `<div style="
@@ -590,8 +835,8 @@
             color: #0f172a;
             font-weight: 700;
             font-size: 11px;
-            width: 24px;
-            height: 24px;
+            width: 22px;
+            height: 22px;
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -599,23 +844,23 @@
             border: 2px solid #ffffff;
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
           ">${index + 1}</div>`,
-          iconSize: [24, 24],
-          iconAnchor: [12, 12]
+          iconSize: [22, 22],
+          iconAnchor: [11, 11]
         });
 
         const warningBadge = isDuplicate 
-          ? `<div style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); padding: 4px 8px; border-radius: 6px; font-size: 0.72rem; margin-bottom: 8px;">
+          ? `<div style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); padding: 3px 6px; border-radius: 5px; font-size: 0.7rem; margin-bottom: 6px;">
                ⚠️ Збіг координат з Вузлом ${sameAsIndex} (зміщено для виділення)
              </div>`
           : '';
 
         const popupContent = `
-          <div class="route-popup" style="font-size: 13px;">
+          <div class="route-popup" style="font-size: 12px;">
             ${warningBadge}
-            <b style="font-size: 14px;">Вузол ${index + 1}: ${pt.subdivision}</b><br><br>
+            <b style="font-size: 13px;">Вузол ${index + 1}: ${pt.subdivision}</b><br><br>
             <b>Приїзд:</b> ${pt.arrivalTime}<br>
             <b>Виїзд:</b> ${pt.departureTime}<br>
-            <hr style="margin: 6px 0; border-color: var(--border);">
+            <hr style="margin: 5px 0; border-color: var(--border);">
             <b>Час перебування:</b> <span style="color: var(--accent-green); font-weight: bold;">${timeAtWarehouse}</span>
           </div>
         `;
@@ -628,7 +873,6 @@
         boundsGroup.addLayer(marker);
       });
 
-      // 2. Отрисовка бегущей линии между смещенными точками
       for (let i = 0; i < processedPoints.length - 1; i++) {
         const p1 = processedPoints[i];
         const p2 = processedPoints[i + 1];
@@ -651,11 +895,11 @@
         const travelTime = formatDuration(arrP2 - depP1);
 
         const linePopupContent = `
-          <div class="route-popup" style="font-size: 13px;">
+          <div class="route-popup" style="font-size: 12px;">
             <b>Перегін:</b> ${p1.subdivision} → ${p2.subdivision}<br>
             <b>Виїзд:</b> ${p1.departureTime}<br>
             <b>Приїзд:</b> ${p2.arrivalTime}<br>
-            <hr style="margin: 6px 0; border-color: var(--border);">
+            <hr style="margin: 5px 0; border-color: var(--border);">
             <b>Час у дорозі:</b> <span style="color: var(--accent); font-weight: bold;">${travelTime}</span>
           </div>
         `;
@@ -666,11 +910,12 @@
         currentLines.push(bgLine, animLine);
       }
 
-      map.fitBounds(boundsGroup.getBounds(), { padding: [50, 50] });
+      map.fitBounds(boundsGroup.getBounds(), { padding: [40, 40] });
     }
 
     function goBack() {
       if (currentLevel > 1) {
+        document.getElementById('searchBarcode').value = '';
         currentLevel--;
         renderTable();
       }
