@@ -18,6 +18,7 @@
       --border: #334155;        
       --accent: #38bdf8;        
       --accent-green: #4ade80;  
+      --accent-orange: #f59e0b;
     }
 
     * {
@@ -166,6 +167,34 @@
 
     .btn-fetch:hover {
       background-color: #7dd3fc;
+    }
+
+    .mode-btn {
+      padding: 3px 10px;
+      font-size: 0.7rem;
+      height: 26px;
+      border-radius: 5px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s ease;
+      opacity: 0.5;
+    }
+
+    .mode-btn.active-plan {
+      background-color: #38bdf8 !important;
+      color: #0f172a !important;
+      opacity: 1 !important;
+      border-color: #ffffff !important;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+    }
+
+    .mode-btn.active-fact {
+      background-color: #4ade80 !important;
+      color: #0f172a !important;
+      opacity: 1 !important;
+      border-color: #ffffff !important;
+      box-shadow: 0 0 10px rgba(74, 222, 128, 0.6);
     }
 
     .btn-back {
@@ -423,7 +452,6 @@
           <label>Дата по:</label>
           <input type="date" id="dateTo" value="2026-10-05">
         </div>
-        <!-- Новый параметр фильтрации количества дней -->
         <div class="form-group" style="max-width: 80px;">
           <label>Днів (>=):</label>
           <input type="number" id="minDays" value="4" min="0">
@@ -479,10 +507,13 @@
       </div>
     </div>
 
-    <!-- 3. Навигация -->
-    <div class="form-row" style="align-items: center;">
+    <!-- 3. Навигация с запоминанием выбранного режима -->
+    <div class="form-row" style="align-items: center; gap: 4px;">
       <button id="backBtn" class="btn-back" onclick="goBack()">← Назад</button>
       <div id="breadcrumb" class="breadcrumb" style="flex: 1;">Рівень 1: Планова тривалість (дні)</div>
+      
+      <button id="planRouteBtn" class="mode-btn active-plan" style="display:none; background: #38bdf8; color: #0f172a;" onclick="setRouteMode('plan')">🗺️ План</button>
+      <button id="factRouteBtn" class="mode-btn" style="display:none; background: #4ade80; color: #0f172a;" onclick="setRouteMode('fact')">📍 Факт</button>
     </div>
     
     <!-- 4. Таблица -->
@@ -539,6 +570,11 @@
     let parcelsData = [];
     let routePointsData = [];
     let routeCache = {};
+    let factRouteCache = {};
+
+    let currentBarcode = null;
+    let currentEN = null;
+    let activeRouteMode = 'plan'; // Глобальное запоминание режима: 'plan' или 'fact'
 
     const map = L.map('map').setView([48.3794, 31.1656], 6);
 
@@ -558,6 +594,35 @@
 
     function closeHelpModal() {
       document.getElementById('helpModal').style.display = 'none';
+    }
+
+    // Переключение и запоминание выбранного режима
+    function setRouteMode(mode) {
+      activeRouteMode = mode;
+      
+      const planBtn = document.getElementById('planRouteBtn');
+      const factBtn = document.getElementById('factRouteBtn');
+
+      if (mode === 'plan') {
+        planBtn.classList.add('active-plan');
+        factBtn.classList.remove('active-fact');
+      } else {
+        factBtn.classList.add('active-fact');
+        planBtn.classList.remove('active-plan');
+      }
+
+      if (currentBarcode) {
+        drawSelectedParcelRoute(currentBarcode, currentEN);
+      }
+    }
+
+    // Вызов отрисовки строго по запомненному режиму
+    function drawSelectedParcelRoute(barcode, en) {
+      if (activeRouteMode === 'fact') {
+        drawFactRouteOnMap(barcode, en);
+      } else {
+        drawRouteOnMap(barcode, en);
+      }
     }
 
     function handleBarcodeTyping() {
@@ -592,7 +657,7 @@
           renderTable();
 
           if (matches.length === 1) {
-            drawRouteOnMap(matches[0].barcode, matches[0].EN);
+            drawSelectedParcelRoute(matches[0].barcode, matches[0].EN);
           }
           return;
         }
@@ -620,11 +685,12 @@
       statusMsg.style.color = '#38bdf8';
 
       routeCache = {};
+      factRouteCache = {};
 
       const url = new URL('http://127.0.0.1:5000/api/data');
       url.searchParams.append('date_from', dateFrom);
       url.searchParams.append('date_to', dateTo);
-      url.searchParams.append('min_days', minDays); // Передаем параметр дней
+      url.searchParams.append('min_days', minDays);
       if (searchBarcode) url.searchParams.append('barcode', searchBarcode);
       if (frdSender) url.searchParams.append('frd_sender', frdSender);
       if (frdRecipient) url.searchParams.append('frd_recipient', frdRecipient);
@@ -649,7 +715,7 @@
           selectedDays = 'search';
           currentLevel = 2;
           renderTable();
-          drawRouteOnMap(parcelsData[0].barcode, parcelsData[0].EN);
+          drawSelectedParcelRoute(parcelsData[0].barcode, parcelsData[0].EN);
         } else {
           currentLevel = 1;
           renderTable();
@@ -739,6 +805,9 @@
 
       if (currentLevel === 1) {
         backBtn.style.display = 'none';
+        document.getElementById('planRouteBtn').style.display = 'none';
+        document.getElementById('factRouteBtn').style.display = 'none';
+
         breadcrumb.innerText = 'Рівень 1: Планова тривалість (дні)';
         header.innerHTML = `<th>Планова тривалість</th><th>Кількість ШК</th>`;
 
@@ -781,8 +850,8 @@
         parcelsForDays.forEach(parcel => {
           const tr = document.createElement('tr');
           tr.className = 'clickable';
-          // Передаем и barcode, и EN в функцию drawRouteOnMap
-          tr.onclick = () => drawRouteOnMap(parcel.barcode, parcel.EN);
+          // Клик по строке теперь риует активный запомненный режим
+          tr.onclick = () => drawSelectedParcelRoute(parcel.barcode, parcel.EN);
           
           const reqDateBadge = parcel.hasRequestedDate === 1 
             ? ' <span title="Замовлена клієнтом дата доставки" style="font-size:0.85rem;">📅</span>' 
@@ -803,8 +872,14 @@
       }
     }
 
-    // --- ОТОБРАЖЕНИЕ МАРШРУТА НА КАРТЕ (ПЕРЕДАЕМ EN И BARCODE) ---
+    // --- 1. ОТОБРАЖЕНИЕ ПЛАНОВОГО МАРШРУТА ---
     async function drawRouteOnMap(barcode, en) {
+      currentBarcode = barcode;
+      currentEN = en;
+
+      document.getElementById('planRouteBtn').style.display = 'inline-block';
+      document.getElementById('factRouteBtn').style.display = 'inline-block';
+
       currentLines.forEach(line => map.removeLayer(line));
       currentMarkers.forEach(marker => map.removeLayer(marker));
       currentLines = [];
@@ -816,14 +891,12 @@
         points = routeCache[barcode];
       }
 
-      // Если маршрута нет в памяти — делаем фоновый запрос
       if (points.length === 0) {
         const statusMsg = document.getElementById('statusMsg');
         const originalStatus = statusMsg.innerText;
-        statusMsg.innerText = `Завантаження маршруту для ${barcode}...`;
+        statusMsg.innerText = `Завантаження планового маршруту для ${barcode}...`;
         statusMsg.style.color = '#38bdf8';
 
-        // Если en не был передан явно, ищем его в выгруженных parcelsData
         if (!en) {
           const found = parcelsData.find(p => p.barcode === barcode);
           if (found) en = found.EN;
@@ -841,14 +914,14 @@
           statusMsg.innerText = originalStatus;
           statusMsg.style.color = '#4ade80';
         } catch (err) {
-          statusMsg.innerText = 'Не вдалося завантажити маршрут з DWH';
+          statusMsg.innerText = 'Не вдалося завантажити плановий маршрут';
           statusMsg.style.color = '#ef4444';
           return;
         }
       }
 
       if (points.length === 0) {
-        alert('Маршрут для даного ШК не знайдено');
+        alert('Плановий маршрут для даного ШК не знайдено');
         return;
       }
 
@@ -859,6 +932,9 @@
       points.forEach((pt, index) => {
         const rawLat = Number(pt.lat);
         const rawLng = Number(pt.lng);
+
+        if (isNaN(rawLat) || isNaN(rawLng) || rawLat === 0) return;
+
         const coordKey = `${rawLat.toFixed(5)},${rawLng.toFixed(5)}`;
         
         let displayLat = rawLat;
@@ -921,7 +997,7 @@
         const popupContent = `
           <div class="route-popup" style="font-size: 12px;">
             ${warningBadge}
-            <b style="font-size: 13px;">Вузол ${index + 1}: ${pt.subdivision}</b><br><br>
+            <b style="font-size: 13px; color: var(--accent);">[ПЛАН] Вузол ${index + 1}: ${pt.subdivision}</b><br><br>
             <b>Приїзд:</b> ${pt.arrivalTime}<br>
             <b>Виїзд:</b> ${pt.departureTime}<br>
             <hr style="margin: 5px 0; border-color: var(--border);">
@@ -960,7 +1036,7 @@
 
         const linePopupContent = `
           <div class="route-popup" style="font-size: 12px;">
-            <b>Перегін:</b> ${p1.subdivision} → ${p2.subdivision}<br>
+            <b style="color: var(--accent);">[ПЛАН] Перегін:</b> ${p1.subdivision} → ${p2.subdivision}<br>
             <b>Виїзд:</b> ${p1.departureTime}<br>
             <b>Приїзд:</b> ${p2.arrivalTime}<br>
             <hr style="margin: 5px 0; border-color: var(--border);">
@@ -974,7 +1050,242 @@
         currentLines.push(bgLine, animLine);
       }
 
-      map.fitBounds(boundsGroup.getBounds(), { padding: [40, 40] });
+      if (currentMarkers.length > 0) {
+        map.fitBounds(boundsGroup.getBounds(), { padding: [40, 40] });
+      }
+    }
+
+    // --- 2. ОТОБРАЖЕНИЕ ФАКТИЧЕСКОГО МАРШРУТА (BMF) ---
+    async function drawFactRouteOnMap(barcode, en) {
+      currentBarcode = barcode;
+      currentEN = en;
+
+      document.getElementById('planRouteBtn').style.display = 'inline-block';
+      document.getElementById('factRouteBtn').style.display = 'inline-block';
+
+      currentLines.forEach(line => map.removeLayer(line));
+      currentMarkers.forEach(marker => map.removeLayer(marker));
+      currentLines = [];
+      currentMarkers = [];
+
+      let rawEvents = factRouteCache[barcode];
+
+      if (!rawEvents) {
+        const statusMsg = document.getElementById('statusMsg');
+        const originalStatus = statusMsg.innerText;
+        statusMsg.innerText = `Завантаження фактичного маршруту для ${barcode}...`;
+        statusMsg.style.color = '#4ade80';
+
+        if (!en) {
+          const found = parcelsData.find(p => p.barcode === barcode);
+          if (found) en = found.EN;
+        }
+
+        try {
+          const url = `http://127.0.0.1:5000/api/fact_route?en=${encodeURIComponent(en || '')}&barcode=${encodeURIComponent(barcode)}`;
+          const response = await fetch(url);
+          if (!response.ok) throw new Error('Помилка завантаження');
+          
+          const data = await response.json();
+          rawEvents = data.routes || [];
+          factRouteCache[barcode] = rawEvents;
+
+          statusMsg.innerText = originalStatus;
+          statusMsg.style.color = '#4ade80';
+        } catch (err) {
+          statusMsg.innerText = 'Не вдалося завантажити фактичний маршрут';
+          statusMsg.style.color = '#ef4444';
+          return;
+        }
+      }
+
+      if (!rawEvents || rawEvents.length === 0) {
+        alert('Фактичний маршрут для даного ШК не знайдено');
+        return;
+      }
+
+      const nodes = groupFactEventsIntoNodes(rawEvents);
+
+      const boundsGroup = L.featureGroup();
+      const processedNodes = [];
+      const coordTracker = {};
+
+      nodes.forEach((node, index) => {
+        const rawLat = Number(node.lat);
+        const rawLng = Number(node.lng);
+
+        if (isNaN(rawLat) || isNaN(rawLng) || rawLat === 0) return;
+
+        const coordKey = `${rawLat.toFixed(5)},${rawLng.toFixed(5)}`;
+        
+        let displayLat = rawLat;
+        let displayLng = rawLng;
+        let isDuplicate = false;
+        let sameAsIndex = null;
+
+        if (coordTracker[coordKey] !== undefined) {
+          isDuplicate = true;
+          sameAsIndex = coordTracker[coordKey].firstIndex;
+          coordTracker[coordKey].count++;
+          
+          const dupCount = coordTracker[coordKey].count - 1;
+          const angle = (dupCount * 90) * (Math.PI / 180);
+          const offset = 0.0003; 
+          displayLat += offset * Math.cos(angle);
+          displayLng += offset * Math.sin(angle);
+        } else {
+          coordTracker[coordKey] = { firstIndex: index + 1, count: 1 };
+        }
+
+        processedNodes.push({
+          ...node,
+          displayLat,
+          displayLng,
+          isDuplicate,
+          sameAsIndex
+        });
+
+        // Теперь цвет маркера проверяет isDuplicate (оранжевый для дубликатов, зеленый для обычных)
+        const customIcon = L.divIcon({
+          className: 'custom-map-marker',
+          html: `<div style="
+            background: ${isDuplicate ? '#f59e0b' : '#4ade80'};
+            color: #0f172a;
+            font-weight: 700;
+            font-size: 11px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+          ">${index + 1}</div>`,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11]
+        });
+
+        let dwellText = "—";
+        if (node.firstArrival && node.lastDeparture) {
+          dwellText = formatDuration(parseDate(node.lastDeparture) - parseDate(node.firstArrival));
+        }
+
+        const eventsListHtml = node.events.map(e => 
+          `<span style="color:var(--text-muted); font-size:0.7rem;">• ${e.time}: <b>${e.desc}</b></span>`
+        ).join('<br>');
+
+        const warningBadge = isDuplicate 
+          ? `<div style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); padding: 3px 6px; border-radius: 5px; font-size: 0.7rem; margin-bottom: 6px;">
+               ⚠️ Збіг координат з Вузлом ${sameAsIndex} (зміщено для виділення)
+             </div>`
+          : '';
+
+        const popupContent = `
+          <div class="route-popup" style="font-size: 12px;">
+            ${warningBadge}
+            <b style="font-size: 13px; color: #4ade80;">[ФАКТ] Вузол ${index + 1}: ${node.subdivision}</b><br><br>
+            <b>Перший приїзд:</b> ${node.firstArrival || '<span style="color:var(--text-muted)">немає даних</span>'}<br>
+            <b>Останній виїзд:</b> ${node.lastDeparture || '<span style="color:var(--text-muted)">немає даних</span>'}<br>
+            <hr style="margin: 5px 0; border-color: var(--border);">
+            <b>Час перебування:</b> <span style="color: var(--accent-green); font-weight: bold;">${dwellText}</span><br>
+            <details style="margin-top: 6px; cursor: pointer;">
+              <summary style="color: var(--accent); font-size: 0.72rem;">Усі події вузла (${node.events.length})</summary>
+              <div style="margin-top: 4px; max-height: 80px; overflow-y: auto;">${eventsListHtml}</div>
+            </details>
+          </div>
+        `;
+
+        const marker = L.marker([displayLat, displayLng], { icon: customIcon })
+          .addTo(map)
+          .bindPopup(popupContent);
+
+        currentMarkers.push(marker);
+        boundsGroup.addLayer(marker);
+      });
+
+      // Линии между узлами ФАКТА
+      for (let i = 0; i < processedNodes.length - 1; i++) {
+        const n1 = processedNodes[i];
+        const n2 = processedNodes[i + 1];
+
+        const bgLine = L.polyline([[n1.displayLat, n1.displayLng], [n2.displayLat, n2.displayLng]], {
+          color: '#4ade80',
+          weight: 5,
+          opacity: 0.6
+        }).addTo(map);
+
+        const animLine = L.polyline([[n1.displayLat, n1.displayLng], [n2.displayLat, n2.displayLng]], {
+          color: '#ffffff',
+          weight: 3,
+          opacity: 0.9,
+          className: 'animated-line'
+        }).addTo(map);
+
+        let travelTime = "—";
+        if (n1.lastDeparture && n2.firstArrival) {
+          travelTime = formatDuration(parseDate(n2.firstArrival) - parseDate(n1.lastDeparture));
+        }
+
+        const linePopupContent = `
+          <div class="route-popup" style="font-size: 12px;">
+            <b style="color: #4ade80;">[ФАКТ] Перегін:</b> ${n1.subdivision} → ${n2.subdivision}<br>
+            <b>Виїзд:</b> ${n1.lastDeparture || '—'}<br>
+            <b>Приїзд:</b> ${n2.firstArrival || '—'}<br>
+            <hr style="margin: 5px 0; border-color: var(--border);">
+            <b>Час у дорозі:</b> <span style="color: #4ade80; font-weight: bold;">${travelTime}</span>
+          </div>
+        `;
+
+        bgLine.bindPopup(linePopupContent);
+        animLine.bindPopup(linePopupContent);
+
+        currentLines.push(bgLine, animLine);
+      }
+
+      if (currentMarkers.length > 0) {
+        map.fitBounds(boundsGroup.getBounds(), { padding: [40, 40] });
+      }
+    }
+
+    function groupFactEventsIntoNodes(rawEvents) {
+      if (!rawEvents || rawEvents.length === 0) return [];
+      
+      const nodes = [];
+      let currentNode = null;
+
+      rawEvents.forEach(evt => {
+        const sub = evt.subdivision;
+        const time = evt.Time;
+        const desc = evt.Description || '';
+        const lat = evt.lat;
+        const lng = evt.lng;
+
+        if (!currentNode || currentNode.subdivision !== sub) {
+          if (currentNode) nodes.push(currentNode);
+          currentNode = {
+            subdivision: sub,
+            lat: lat,
+            lng: lng,
+            events: [],
+            firstArrival: null,
+            lastDeparture: null
+          };
+        }
+
+        currentNode.events.push({ time, desc });
+
+        const dLower = desc.toLowerCase();
+        if (dLower.includes('arrival')) {
+          if (!currentNode.firstArrival) currentNode.firstArrival = time;
+        }
+        if (dLower.includes('departure')) {
+          currentNode.lastDeparture = time;
+        }
+      });
+
+      if (currentNode) nodes.push(currentNode);
+      return nodes;
     }
 
     function goBack() {

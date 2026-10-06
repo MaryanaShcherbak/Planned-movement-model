@@ -21,7 +21,7 @@ def get_data():
     search_barcode = request.args.get('barcode', '').strip()
     frd_sender = request.args.get('frd_sender', '').strip()
     frd_recipient = request.args.get('frd_recipient', '').strip()
-    min_days = request.args.get('min_days', '4').strip() # Получаем количество дней (по умолчанию 4)
+    min_days = request.args.get('min_days', '4').strip()
 
     if not date_from or not date_to:
         return jsonify({'error': 'Параметри date_from та date_to є обов\'язковими'}), 400
@@ -31,9 +31,6 @@ def get_data():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # =======================================================================
-        # ВАРИАНТ A: ТОЧЕЧНЫЙ БЫСТРЫЙ ПОИСК ПО ШК / ЕН
-        # =======================================================================
         if search_barcode:
             sql_barcode = """
             SET NOCOUNT ON;
@@ -149,9 +146,6 @@ def get_data():
 
             return jsonify({'parcels': parcels, 'routes': routes})
 
-        # =======================================================================
-        # ВАРИАНТ Б: ОБЩАЯ ВЫГРУЗКА ЗА ПЕРИОД
-        # =======================================================================
         else:
             frd_joins_step1 = ""
             frd_where_step1 = ""
@@ -287,7 +281,7 @@ def get_data():
             conn.close()
 
 # ---------------------------------------------------------------------------
-# 2. ПОЛУЧЕНИЕ МАРШРУТА ОДНОГО ШК / ЕН НА ВИМОГУ (ON DEMAND)
+# 2. ПОЛУЧЕНИЕ ПЛАНОВОГО МАРШРУТА
 # ---------------------------------------------------------------------------
 @app.route('/api/route', methods=['GET'])
 def get_single_route():
@@ -338,8 +332,73 @@ def get_single_route():
         cursor.execute(sql_bmp, [en, barcode])
         
         while cursor.description is None:
-            if not cursor.nextset(): 
-                break
+            if not cursor.nextset(): break
+                
+        cols = [column[0] for column in cursor.description]
+        routes = [dict(zip(cols, row)) for row in cursor.fetchall()]
+
+        return jsonify({'routes': routes})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+# ---------------------------------------------------------------------------
+# 3. НОВЫЙ ЭНДПОИНТ: ПОЛУЧЕНИЕ ФАКТИЧЕСКОГО МАРШРУТА (BMF)
+# ---------------------------------------------------------------------------
+@app.route('/api/fact_route', methods=['GET'])
+def get_fact_route():
+    en = request.args.get('en', '').strip()
+    barcode = request.args.get('barcode', '').strip()
+    
+    if not barcode and not en:
+        return jsonify({'error': 'Параметри en та barcode є обов\'язковими'}), 400
+
+    sql_bmf = """
+    SET NOCOUNT ON;
+    DROP TABLE IF EXISTS #temp_ewb;
+
+    SELECT 
+        ewb.iExpressWaybillID,
+        ewb.Number,
+        ewb.dt
+    INTO #temp_ewb
+    FROM [DWH].[dm].[DocumentExpressWaybill] ewb (NOLOCK)
+    WHERE ewb.Number = ?;
+
+    SELECT  
+        ewb.iExpressWaybillID,
+        ewb.Number AS EN,
+        bp.Barcode AS barcode,
+        CONVERT(VARCHAR(10), ewb.dt, 120) AS 'createDate',
+        INV.INVENTLOCATIONID AS 'subdivision',
+        WH.Longitude AS 'lng',
+        WH.Latitude AS 'lat',
+        CONVERT(VARCHAR(19), BMF.Date, 120) AS 'Time',
+        me.Description
+    FROM #temp_ewb ewb (NOLOCK)
+    JOIN DWH.dm.DocumentExpressWaybill_BarcodeParameters bp (NOLOCK) ON bp.iExpressWaybillID = ewb.iExpressWaybillID AND bp.Untied = 0
+    JOIN DWH.dm.InfoRegBarcodeMovementFact BMF (NOLOCK) 
+        ON BMF.Barcode = bp.Barcode
+    JOIN DWH.dim.dimCatalogInventLocation_AX INV (NOLOCK) 
+        ON INV.iWarehouseID = BMF.iWarehouseID
+    JOIN [DWH].[dim].[dimCatalogWarehouses] WH (NOLOCK) 
+        ON WH.whID = BMF.iWarehouseID
+    JOIN DWH.dim.dimCatalogBarcodeMovementEvent me (NOLOCK)
+        ON BMF.iBarcodeMovementEventID = me.iBarcodeMovementEventID
+    WHERE bp.Barcode = ?
+    ORDER BY BMF.Date;
+    """
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(sql_bmf, [en, barcode])
+        
+        while cursor.description is None:
+            if not cursor.nextset(): break
                 
         cols = [column[0] for column in cursor.description]
         routes = [dict(zip(cols, row)) for row in cursor.fetchall()]
