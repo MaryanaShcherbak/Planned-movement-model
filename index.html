@@ -134,7 +134,7 @@
       white-space: nowrap;
     }
 
-    input[type="date"], input[type="text"], select {
+    input[type="date"], input[type="text"], input[type="number"], select {
       width: 100%;
       padding: 4px 7px;
       background-color: var(--bg-sidebar);
@@ -423,6 +423,14 @@
           <label>Дата по:</label>
           <input type="date" id="dateTo" value="2026-10-05">
         </div>
+        <!-- Новый параметр фильтрации количества дней -->
+        <div class="form-group" style="max-width: 80px;">
+          <label>Днів (>=):</label>
+          <input type="number" id="minDays" value="4" min="0">
+        </div>
+      </div>
+
+      <div class="form-row">
         <div class="form-group">
           <label>ФРД Відправник:</label>
           <input type="text" id="frdSender" value="" placeholder="Львів">
@@ -460,7 +468,6 @@
             <option value="">Усі отримувачі</option>
           </select>
         </div>
-        <!-- ВЫПАДАЮЩИЙ СПИСОК ФИЛЬТРАЦИИ ЗАКАЗАННОЙ ДАТЫ -->
         <div class="form-group">
           <label>Замовлена дата 📅:</label>
           <select id="sliceRequestedDate" onchange="applySlicesAndRender()">
@@ -509,10 +516,10 @@
           <div>
             Завантажте оновлену версію проекту з GitHub:
             <br>
-              <a href="https://github.com/MaryanaShcherbak/Planned-movement-model/raw/main/app.exe" download class="github-btn">
-                <svg height="14" width="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
-                Завантажити app.exe
-              </a>
+            <a href="https://github.com/MaryanaShcherbak/Planned-movement-model/raw/main/app.exe" download class="github-btn">
+              <svg height="14" width="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+              Завантажити app.exe
+            </a>
           </div>
         </div>
         <div class="instruction-step">
@@ -531,6 +538,7 @@
   <script>
     let parcelsData = [];
     let routePointsData = [];
+    let routeCache = {};
 
     const map = L.map('map').setView([48.3794, 31.1656], 6);
 
@@ -584,7 +592,7 @@
           renderTable();
 
           if (matches.length === 1) {
-            drawRouteOnMap(matches[0].barcode);
+            drawRouteOnMap(matches[0].barcode, matches[0].EN);
           }
           return;
         }
@@ -597,6 +605,7 @@
     async function loadDataFromDWH() {
       const dateFrom = document.getElementById('dateFrom').value;
       const dateTo = document.getElementById('dateTo').value;
+      const minDays = document.getElementById('minDays').value || '4';
       const searchBarcode = document.getElementById('searchBarcode').value.trim();
       const frdSender = document.getElementById('frdSender').value.trim();
       const frdRecipient = document.getElementById('frdRecipient').value.trim();
@@ -610,9 +619,12 @@
       statusMsg.innerText = 'Завантаження даних з DWH...';
       statusMsg.style.color = '#38bdf8';
 
+      routeCache = {};
+
       const url = new URL('http://127.0.0.1:5000/api/data');
       url.searchParams.append('date_from', dateFrom);
       url.searchParams.append('date_to', dateTo);
+      url.searchParams.append('min_days', minDays); // Передаем параметр дней
       if (searchBarcode) url.searchParams.append('barcode', searchBarcode);
       if (frdSender) url.searchParams.append('frd_sender', frdSender);
       if (frdRecipient) url.searchParams.append('frd_recipient', frdRecipient);
@@ -626,7 +638,7 @@
 
         const data = await response.json();
         parcelsData = data.parcels;
-        routePointsData = data.routes;
+        routePointsData = data.routes || [];
 
         statusMsg.innerText = `Успішно завантажено з DWH: ${parcelsData.length} посилок`;
         statusMsg.style.color = '#4ade80';
@@ -637,7 +649,7 @@
           selectedDays = 'search';
           currentLevel = 2;
           renderTable();
-          drawRouteOnMap(parcelsData[0].barcode);
+          drawRouteOnMap(parcelsData[0].barcode, parcelsData[0].EN);
         } else {
           currentLevel = 1;
           renderTable();
@@ -663,18 +675,16 @@
         recipients.map(r => `<option value="${r}">${r}</option>`).join('');
     }
 
-    // --- ЛОКАЛЬНАЯ ФИЛЬТРАЦИЯ (СРЕЗЫ И ЗАКАЗАННАЯ ДАТА) ---
     function getFilteredParcels() {
       const senderVal = document.getElementById('sliceFrdSender').value;
       const recipientVal = document.getElementById('sliceFrdRecipient').value;
-      const reqDateMode = document.getElementById('sliceRequestedDate').value; // '', 'yes', or 'no'
+      const reqDateMode = document.getElementById('sliceRequestedDate').value;
       const searchVal = document.getElementById('searchBarcode').value.trim().toLowerCase();
 
       return parcelsData.filter(p => {
         const matchSender = !senderVal || p.frdSender === senderVal;
         const matchRecipient = !recipientVal || p.frdRecipient === recipientVal;
         
-        // Фильтрация по наличию / отсутствию заказанной даты
         let matchReqDate = true;
         if (reqDateMode === 'yes') {
           matchReqDate = (p.hasRequestedDate === 1);
@@ -771,7 +781,8 @@
         parcelsForDays.forEach(parcel => {
           const tr = document.createElement('tr');
           tr.className = 'clickable';
-          tr.onclick = () => drawRouteOnMap(parcel.barcode);
+          // Передаем и barcode, и EN в функцию drawRouteOnMap
+          tr.onclick = () => drawRouteOnMap(parcel.barcode, parcel.EN);
           
           const reqDateBadge = parcel.hasRequestedDate === 1 
             ? ' <span title="Замовлена клієнтом дата доставки" style="font-size:0.85rem;">📅</span>' 
@@ -792,13 +803,49 @@
       }
     }
 
-    function drawRouteOnMap(barcode) {
+    // --- ОТОБРАЖЕНИЕ МАРШРУТА НА КАРТЕ (ПЕРЕДАЕМ EN И BARCODE) ---
+    async function drawRouteOnMap(barcode, en) {
       currentLines.forEach(line => map.removeLayer(line));
       currentMarkers.forEach(marker => map.removeLayer(marker));
       currentLines = [];
       currentMarkers = [];
 
-      const points = routePointsData.filter(p => p.barcode === barcode);
+      let points = routePointsData.filter(p => p.barcode === barcode);
+
+      if (points.length === 0 && routeCache[barcode]) {
+        points = routeCache[barcode];
+      }
+
+      // Если маршрута нет в памяти — делаем фоновый запрос
+      if (points.length === 0) {
+        const statusMsg = document.getElementById('statusMsg');
+        const originalStatus = statusMsg.innerText;
+        statusMsg.innerText = `Завантаження маршруту для ${barcode}...`;
+        statusMsg.style.color = '#38bdf8';
+
+        // Если en не был передан явно, ищем его в выгруженных parcelsData
+        if (!en) {
+          const found = parcelsData.find(p => p.barcode === barcode);
+          if (found) en = found.EN;
+        }
+
+        try {
+          const url = `http://127.0.0.1:5000/api/route?en=${encodeURIComponent(en || '')}&barcode=${encodeURIComponent(barcode)}`;
+          const response = await fetch(url);
+          if (!response.ok) throw new Error('Помилка завантаження');
+          
+          const data = await response.json();
+          points = data.routes || [];
+          routeCache[barcode] = points;
+
+          statusMsg.innerText = originalStatus;
+          statusMsg.style.color = '#4ade80';
+        } catch (err) {
+          statusMsg.innerText = 'Не вдалося завантажити маршрут з DWH';
+          statusMsg.style.color = '#ef4444';
+          return;
+        }
+      }
 
       if (points.length === 0) {
         alert('Маршрут для даного ШК не знайдено');
@@ -916,7 +963,7 @@
             <b>Перегін:</b> ${p1.subdivision} → ${p2.subdivision}<br>
             <b>Виїзд:</b> ${p1.departureTime}<br>
             <b>Приїзд:</b> ${p2.arrivalTime}<br>
-            <hr style="margin: 6px 0; border-color: var(--border);">
+            <hr style="margin: 5px 0; border-color: var(--border);">
             <b>Час у дорозі:</b> <span style="color: var(--accent); font-weight: bold;">${travelTime}</span>
           </div>
         `;
