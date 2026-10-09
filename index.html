@@ -54,12 +54,67 @@
     }
 
     #map {
+      position: relative;
       flex-grow: 1;
       height: 100%;
       border-radius: 10px;
       overflow: hidden;
       border: 1px solid var(--border);
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Компактная всплывающая таблица в верхнем правом углу карты */
+    #mapOverlayTable {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 1000;
+      background: rgba(15, 23, 42, 0.94);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      max-height: 80%;
+      max-width: 420px;
+      overflow-y: auto;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      display: none;
+    }
+
+    #mapOverlayTable table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.66rem;
+    }
+
+    #mapOverlayTable th, #mapOverlayTable td {
+      padding: 2px 4px;
+      border: 1px solid var(--border);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    #mapOverlayTable th {
+      background: var(--bg-sidebar);
+      color: var(--accent);
+      font-weight: 600;
+      padding: 3px 4px;
+    }
+
+    .pct-label {
+      font-size: 0.58rem;
+      color: var(--accent-green);
+      display: block;
+      font-weight: 600;
+      line-height: 1;
+    }
+
+    .pct-travel {
+      font-size: 0.58rem;
+      color: var(--accent);
+      display: block;
+      font-weight: 600;
+      line-height: 1;
     }
 
     .header-row {
@@ -446,11 +501,11 @@
       <div class="form-row">
         <div class="form-group">
           <label>Дата з:</label>
-          <input type="date" id="dateFrom" value="2026-10-05">
+          <input type="date" id="dateFrom">
         </div>
         <div class="form-group">
           <label>Дата по:</label>
-          <input type="date" id="dateTo" value="2026-10-05">
+          <input type="date" id="dateTo">
         </div>
         <div class="form-group" style="max-width: 80px;">
           <label>Днів (>=):</label>
@@ -532,7 +587,10 @@
     </div>
   </div>
 
-  <div id="map"></div>
+  <div id="map">
+    <!-- Всплывающая таблица плановой модели поверх карты -->
+    <div id="mapOverlayTable"></div>
+  </div>
 
   <!-- Модальное окно инструкции -->
   <div id="helpModal" class="modal-overlay" onclick="if(event.target === this) closeHelpModal()">
@@ -574,12 +632,27 @@
 
     let currentBarcode = null;
     let currentEN = null;
-    let activeRouteMode = 'plan'; // Глобальное запоминание режима: 'plan' или 'fact'
+    let activeRouteMode = 'plan'; 
+
+    // Автоматическая подстановка вчерашнего дня в инпуты дат при загрузке
+    window.addEventListener('DOMContentLoaded', () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      const yyyy = yesterday.getFullYear();
+      const mm = String(yesterday.getMonth() + 1).padStart(2, '0');
+      const dd = String(yesterday.getDate()).padStart(2, '0');
+      const yesterdayStr = `${yyyy}-${mm}-${dd}`;
+
+      document.getElementById('dateFrom').value = yesterdayStr;
+      document.getElementById('dateTo').value = yesterdayStr;
+    });
 
     const map = L.map('map').setView([48.3794, 31.1656], 6);
 
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
+    L.tileLayer('https://mt1.google.com/vt/lyrs=m&hl=uk&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      attribution: '© Google'
     }).addTo(map);
 
     let currentLines = [];
@@ -596,7 +669,6 @@
       document.getElementById('helpModal').style.display = 'none';
     }
 
-    // Переключение и запоминание выбранного режима
     function setRouteMode(mode) {
       activeRouteMode = mode;
       
@@ -616,7 +688,6 @@
       }
     }
 
-    // Вызов отрисовки строго по запомненному режиму
     function drawSelectedParcelRoute(barcode, en) {
       if (activeRouteMode === 'fact') {
         drawFactRouteOnMap(barcode, en);
@@ -785,6 +856,26 @@
       return result.join(' ');
     }
 
+    function formatHMM(ms) {
+      if (isNaN(ms) || ms < 0) return "—";
+      const totalMins = Math.floor(ms / (1000 * 60));
+      const hrs = Math.floor(totalMins / 60);
+      const mins = totalMins % 60;
+      return `${hrs}:${String(mins).padStart(2, '0')}`;
+    }
+
+    function formatTableDate(dateStr) {
+      if (!dateStr) return '—';
+      const d = parseDate(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      const hh = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${dd}.${mm}.${yyyy} ${hh}:${min}`;
+    }
+
     function parseDate(dateStr) {
       return new Date(dateStr.replace(' ', 'T'));
     }
@@ -807,6 +898,7 @@
         backBtn.style.display = 'none';
         document.getElementById('planRouteBtn').style.display = 'none';
         document.getElementById('factRouteBtn').style.display = 'none';
+        document.getElementById('mapOverlayTable').style.display = 'none';
 
         breadcrumb.innerText = 'Рівень 1: Планова тривалість (дні)';
         header.innerHTML = `<th>Планова тривалість</th><th>Кількість ШК</th>`;
@@ -850,7 +942,6 @@
         parcelsForDays.forEach(parcel => {
           const tr = document.createElement('tr');
           tr.className = 'clickable';
-          // Клик по строке теперь риует активный запомненный режим
           tr.onclick = () => drawSelectedParcelRoute(parcel.barcode, parcel.EN);
           
           const reqDateBadge = parcel.hasRequestedDate === 1 
@@ -870,6 +961,86 @@
           tbody.appendChild(tr);
         });
       }
+    }
+
+    // --- ОТОБРАЖЕНИЕ ТАБЛИЦЫ С ПРОЦЕНТАМИ ПОВЕРХ КАРТЫ (С КОМПАКТНЫМ СДВИГОМ «РУХ») ---
+    function renderMapOverlayTable(points, barcode) {
+      const overlay = document.getElementById('mapOverlayTable');
+      if (!points || points.length === 0) {
+        overlay.style.display = 'none';
+        return;
+      }
+
+      const tFirst = parseDate(points[0].arrivalTime);
+      const lastPt = points[points.length - 1];
+      const tLast = parseDate(lastPt.departureTime || lastPt.arrivalTime);
+      const totalMS = tLast - tFirst;
+
+      let rowsHtml = '';
+
+      for (let i = 0; i < points.length; i++) {
+        const pt = points[i];
+        const arrDate = parseDate(pt.arrivalTime);
+        const depDate = parseDate(pt.departureTime);
+        
+        // Расчет простоя
+        const dwellMS = depDate - arrDate;
+        const dwellHMM = formatHMM(dwellMS);
+        const dwellPct = (totalMS > 0 && dwellMS > 0) ? ((dwellMS / totalMS) * 100).toFixed(1) : 0;
+
+        // Расчет движения к следующему узлу
+        let travelHMM = "—";
+        let travelPct = 0;
+        if (i < points.length - 1) {
+          const nextArr = parseDate(points[i+1].arrivalTime);
+          const travelMS = nextArr - depDate;
+          travelHMM = formatHMM(travelMS);
+          travelPct = (totalMS > 0 && travelMS > 0) ? ((travelMS / totalMS) * 100).toFixed(1) : 0;
+        }
+
+        rowsHtml += `
+          <tr>
+            <td style="text-align:left; font-weight:600; color: var(--text-main);">${pt.subdivision}</td>
+            <td>${formatTableDate(pt.arrivalTime)}</td>
+            <td>${formatTableDate(pt.departureTime)}</td>
+            <td>
+              ${dwellHMM}
+              ${dwellPct > 0 ? `<span class="pct-label">${dwellPct}%</span>` : ''}
+            </td>
+            <td style="position: relative;">
+              ${i < points.length - 1 ? `
+                <div style="transform: translateY(50%);">
+                  ${travelHMM}
+                  <span class="pct-travel">${travelPct}%</span>
+                </div>
+              ` : ''}
+            </td>
+          </tr>
+        `;
+      }
+
+      overlay.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; border-bottom: 1px solid var(--border); padding-bottom: 3px;">
+          <span style="font-weight:700; color:var(--accent); font-size:0.72rem;">Планова модель: ${barcode}</span>
+          <button onclick="document.getElementById('mapOverlayTable').style.display='none'" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.8rem; font-weight:bold;">✖</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Підрозділ</th>
+              <th>Приїзд</th>
+              <th>Виїзд</th>
+              <th>Простій</th>
+              <th>Рух</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      `;
+
+      overlay.style.display = 'block';
     }
 
     // --- 1. ОТОБРАЖЕНИЕ ПЛАНОВОГО МАРШРУТА ---
@@ -922,8 +1093,11 @@
 
       if (points.length === 0) {
         alert('Плановий маршрут для даного ШК не знайдено');
+        document.getElementById('mapOverlayTable').style.display = 'none';
         return;
       }
+
+      renderMapOverlayTable(points, barcode);
 
       const boundsGroup = L.featureGroup();
       const processedPoints = [];
@@ -1018,9 +1192,9 @@
         const p2 = processedPoints[i + 1];
 
         const bgLine = L.polyline([[p1.displayLat, p1.displayLng], [p2.displayLat, p2.displayLng]], {
-          color: '#38bdf8',
+          color: '#08177b',
           weight: 5,
-          opacity: 0.5
+          opacity: 0.95
         }).addTo(map);
 
         const animLine = L.polyline([[p1.displayLat, p1.displayLng], [p2.displayLat, p2.displayLng]], {
@@ -1059,6 +1233,8 @@
     async function drawFactRouteOnMap(barcode, en) {
       currentBarcode = barcode;
       currentEN = en;
+
+      document.getElementById('mapOverlayTable').style.display = 'none';
 
       document.getElementById('planRouteBtn').style.display = 'inline-block';
       document.getElementById('factRouteBtn').style.display = 'inline-block';
@@ -1145,7 +1321,6 @@
           sameAsIndex
         });
 
-        // Теперь цвет маркера проверяет isDuplicate (оранжевый для дубликатов, зеленый для обычных)
         const customIcon = L.divIcon({
           className: 'custom-map-marker',
           html: `<div style="
@@ -1204,15 +1379,14 @@
         boundsGroup.addLayer(marker);
       });
 
-      // Линии между узлами ФАКТА
       for (let i = 0; i < processedNodes.length - 1; i++) {
         const n1 = processedNodes[i];
         const n2 = processedNodes[i + 1];
 
         const bgLine = L.polyline([[n1.displayLat, n1.displayLng], [n2.displayLat, n2.displayLng]], {
-          color: '#4ade80',
+          color: '#0d6e00',
           weight: 5,
-          opacity: 0.6
+          opacity: 0.96
         }).addTo(map);
 
         const animLine = L.polyline([[n1.displayLat, n1.displayLng], [n2.displayLat, n2.displayLng]], {
@@ -1291,6 +1465,7 @@
     function goBack() {
       if (currentLevel > 1) {
         document.getElementById('searchBarcode').value = '';
+        document.getElementById('mapOverlayTable').style.display = 'none';
         currentLevel--;
         renderTable();
       }
